@@ -1,26 +1,50 @@
 import { GoogleGenAI } from "@google/genai";
 import agricultureKnowledge from '../data/agriculture_knowledge.json';
-
-const getGeminiApiKey = () => {
-  const viteKey = import.meta.env?.VITE_GEMINI_API_KEY;
-  const serverKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-  return viteKey || serverKey || '';
-};
+import { getEffectiveGeminiApiKey, getWorkingGeminiModel } from './geminiAgent';
 
 let aiClient: GoogleGenAI | null = null;
+let lastApiKey = '';
 
 const getGeminiClient = () => {
-  const apiKey = getGeminiApiKey();
+  const apiKey = getEffectiveGeminiApiKey();
   if (!apiKey) {
     return null;
   }
 
-  if (!aiClient) {
+  if (!aiClient || lastApiKey !== apiKey) {
+    lastApiKey = apiKey;
     aiClient = new GoogleGenAI({ apiKey });
   }
 
   return aiClient;
 };
+
+async function generateRagWithFallback(ai: GoogleGenAI, config: any) {
+  const candidateModels = Array.from(
+    new Set([
+      getWorkingGeminiModel(),
+      'gemini-3.6-flash',
+      'gemini-3.7-flash',
+      'gemini-3.5-flash',
+      'gemini-2.5-pro',
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite'
+    ])
+  );
+
+  let lastError: any = null;
+  for (const model of candidateModels) {
+    try {
+      return await ai.models.generateContent({
+        ...config,
+        model
+      });
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
 
 interface KnowledgeChunk {
   id: string;
@@ -96,7 +120,7 @@ export const initKnowledgeBase = async () => {
   try {
     // Batch embedding request
     const result = await ai.models.embedContent({
-      model: "gemini-embedding-2-preview",
+      model: "gemini-embedding-001",
       contents: chunksToEmbed.map(chunk => chunk.content)
     });
 
@@ -127,7 +151,7 @@ export const initKnowledgeBase = async () => {
         while (retries > 0 && !success) {
           try {
             const result = await ai.models.embedContent({
-              model: "gemini-embedding-2-preview",
+              model: "gemini-embedding-001",
               contents: [chunk.content]
             });
             chunk.embedding = result.embeddings[0].values;
@@ -262,8 +286,7 @@ export const generateChatResponse = async (query: string, history: any[] = []) =
   Always be polite and encouraging to the farmer.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+    const response = await generateRagWithFallback(ai, {
       contents: [
         ...history.map(h => ({ role: h.role, parts: [{ text: h.content }] })),
         { role: 'user', parts: [{ text: query }] }
@@ -276,6 +299,9 @@ export const generateChatResponse = async (query: string, history: any[] = []) =
     return response.text || "I'm sorry, I couldn't generate a response. Please try again.";
   } catch (error) {
     console.error("Chat generation error:", error);
-    return "I'm having trouble connecting to my knowledge base. Please try again later.";
+    if (context) {
+      return `Here is helpful guidance from our local agricultural knowledge base:\n\n${context}`;
+    }
+    return "I'm here to assist with your crops, disease identification, soil nutrients, and farming practices! Please ask a specific question.";
   }
 };

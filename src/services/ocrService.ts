@@ -55,10 +55,12 @@ Return ONLY a JSON object with this exact schema (numbers only for numeric field
       const candidateModels = Array.from(
         new Set([
           getWorkingGeminiModel(),
-          'gemini-2.0-flash',
-          'gemini-2.5-flash',
-          'gemini-1.5-flash-latest',
-          'gemini-1.5-flash'
+          'gemini-3.6-flash',
+          'gemini-3.7-flash',
+          'gemini-3.5-flash',
+          'gemini-2.5-pro',
+          'gemini-flash-latest',
+          'gemini-2.5-flash-lite'
         ])
       );
 

@@ -109,11 +109,13 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose }) => 
         new Set([
           bestModel,
           getWorkingGeminiModel(),
-          'gemini-2.0-flash',
-          'gemini-2.5-flash',
-          'gemini-1.5-flash-latest',
-          'gemini-1.5-flash',
-          'gemini-2.0-flash-exp'
+          'gemini-3.6-flash',
+          'gemini-3.7-flash',
+          'gemini-3.5-flash',
+          'gemini-2.5-pro',
+          'gemini-flash-latest',
+          'gemini-2.5-flash-lite',
+          'gemini-3.1-flash-lite'
         ])
       );
 
@@ -202,7 +204,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose }) => 
               <div className="relative">
                 <input
                   type="password"
-                  placeholder="Enter passcode (1126)"
+                  placeholder="Enter passcode"
                   value={passcodeInput}
                   onChange={(e) => {
                     setPasscodeInput(e.target.value);

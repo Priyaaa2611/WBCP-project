@@ -19,7 +19,7 @@ export function getWorkingGeminiModel(): string {
     const saved = localStorage.getItem('agrishield_gemini_active_model');
     if (saved && saved.trim()) return saved.trim();
   }
-  return 'gemini-2.0-flash';
+  return 'gemini-3.6-flash';
 }
 
 export function setWorkingGeminiModel(model: string): void {
@@ -39,12 +39,16 @@ export async function detectBestGeminiModel(key: string): Promise<{ model: strin
         .map((m) => m.name.replace(/^models\//, ''));
 
       const preferred = [
-        'gemini-2.0-flash',
+        'gemini-3.6-flash',
+        'gemini-3.7-flash',
+        'gemini-3.5-flash',
+        'gemini-2.5-pro',
+        'gemini-flash-latest',
+        'gemini-2.5-flash-lite',
+        'gemini-3.1-flash-lite',
         'gemini-2.5-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-flash',
-        'gemini-2.0-flash-exp',
-        'gemini-1.5-pro'
+        'gemini-2.0-flash',
+        'gemini-1.5-flash'
       ];
 
       for (const p of preferred) {
@@ -287,11 +291,12 @@ async function callGeminiApi(
   const candidateModels = Array.from(
     new Set([
       getWorkingGeminiModel(),
-      'gemini-2.0-flash',
-      'gemini-2.5-flash',
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-flash',
-      'gemini-1.5-pro'
+      'gemini-3.6-flash',
+      'gemini-3.7-flash',
+      'gemini-3.5-flash',
+      'gemini-2.5-pro',
+      'gemini-flash-latest',
+      'gemini-2.5-flash-lite'
     ])
   );
 
