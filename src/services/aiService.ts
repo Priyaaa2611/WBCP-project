@@ -1,20 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
-
-const getGeminiApiKey = () => {
-  const viteKey = import.meta.env?.VITE_GEMINI_API_KEY;
-  const serverKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-  return viteKey || serverKey || '';
-};
+import { getEffectiveGeminiApiKey, getWorkingGeminiModel } from './geminiAgent';
 
 let aiClient: GoogleGenAI | null = null;
+let lastApiKey = '';
 
 const getGeminiClient = () => {
-  const apiKey = getGeminiApiKey();
+  const apiKey = getEffectiveGeminiApiKey();
   if (!apiKey) {
     return null;
   }
 
-  if (!aiClient) {
+  if (!aiClient || lastApiKey !== apiKey) {
+    lastApiKey = apiKey;
     aiClient = new GoogleGenAI({ apiKey });
   }
 
@@ -25,6 +22,29 @@ const isGeminiKeyError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes('API_KEY_INVALID') || message.includes('API key') || message.includes('API_KEY');
 };
+
+async function generateWithFallback(ai: GoogleGenAI, config: any) {
+  const models = Array.from(new Set([
+    getWorkingGeminiModel(),
+    'gemini-2.0-flash',
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-1.5-flash-latest'
+  ]));
+
+  let lastError: any = null;
+  for (const model of models) {
+    try {
+      return await ai.models.generateContent({
+        ...config,
+        model
+      });
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
 
 export interface CropInput {
   nitrogen: number;
@@ -111,8 +131,7 @@ export const agricultureService = {
     }
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const response = await generateWithFallback(ai, {
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
@@ -168,8 +187,7 @@ export const agricultureService = {
     }
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const response = await generateWithFallback(ai, {
         contents: [
           { text: prompt },
           { inlineData: { mimeType: "image/jpeg", data: base64Image.split(',')[1] || base64Image } }
@@ -223,8 +241,7 @@ export const agricultureService = {
     }
 
     try {
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const response = await generateWithFallback(ai, {
         contents: prompt
       });
       return response.text || "Market trends are currently stable. Monitor daily for significant changes.";

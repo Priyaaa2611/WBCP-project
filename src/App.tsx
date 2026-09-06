@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Logo } from './components/Logo';
 import { ChatWidget } from './components/ChatWidget';
 import { 
@@ -40,7 +40,10 @@ import {
   Loader2,
   ShoppingBag,
   Store,
-  Menu
+  Menu,
+  Key,
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
@@ -71,7 +74,8 @@ import { LocationBanner } from './components/LocationBanner';
 import { LanguageSelector } from './components/LanguageSelector';
 import { FertilizerRecommendation } from './components/fertilizer/FertilizerRecommendation';
 import { HistoryModal } from './components/HistoryModal';
-import { Marketplace } from './components/marketplace/Marketplace';
+import { ApiKeyModal } from './components/ApiKeyModal';
+import { extractSoilParametersFromImage } from './services/ocrService';
 import { FarmMap } from './components/gis/FarmMap';
 import { CropHealthDashboard } from './components/gis/CropHealthDashboard';
 import { useHistoryStore } from './stores/historyStore';
@@ -165,6 +169,49 @@ export function AppContent() {
   const [savingPopup, setSavingPopup] = useState(false);
   const [mapBoundary, setMapBoundary] = useState<any>(null);
 
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [advisorOcrLoading, setAdvisorOcrLoading] = useState(false);
+  const [advisorOcrMsg, setAdvisorOcrMsg] = useState<string | null>(null);
+  const [advisorDragging, setAdvisorDragging] = useState(false);
+  const advisorFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAdvisorImageFile = async (file: File) => {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('Please upload an image file (PNG, JPG, JPEG, WEBP).');
+      return;
+    }
+    setAdvisorOcrLoading(true);
+    setAdvisorOcrMsg(null);
+    try {
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read image file'));
+        reader.readAsDataURL(file);
+      });
+      const base64 = await base64Promise;
+      const extracted = await extractSoilParametersFromImage(base64);
+
+      updateModuleData('cropForm', {
+        ...appData.cropForm,
+        nitrogen: extracted.nitrogen !== undefined ? String(extracted.nitrogen) : appData.cropForm.nitrogen,
+        phosphorus: extracted.phosphorus !== undefined ? String(extracted.phosphorus) : appData.cropForm.phosphorus,
+        potassium: extracted.potassium !== undefined ? String(extracted.potassium) : appData.cropForm.potassium,
+        temperature: extracted.temperature !== undefined ? String(extracted.temperature) : appData.cropForm.temperature,
+        humidity: extracted.humidity !== undefined ? String(extracted.humidity) : appData.cropForm.humidity,
+        ph: extracted.ph !== undefined ? String(extracted.ph) : appData.cropForm.ph,
+        rainfall: extracted.rainfall !== undefined ? String(extracted.rainfall) : appData.cropForm.rainfall,
+      });
+
+      setAdvisorOcrMsg(`Values extracted from image: N: ${extracted.nitrogen ?? '--'}, P: ${extracted.phosphorus ?? '--'}, K: ${extracted.potassium ?? '--'}, pH: ${extracted.ph ?? '--'}`);
+    } catch (err) {
+      console.error('Advisor OCR extraction error:', err);
+      alert('Failed to analyze image. Please enter values manually.');
+    } finally {
+      setAdvisorOcrLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       if (user.location) setPopupLocation(user.location);
@@ -189,6 +236,35 @@ export function AppContent() {
   };
 
   const [lastMarketUpdate, setLastMarketUpdate] = useState<Date>(new Date());
+
+  const logoClicksRef = useRef<{ count: number; lastTime: number }>({ count: 0, lastTime: 0 });
+
+  const handleLogoSecretClick = () => {
+    const now = Date.now();
+    if (now - logoClicksRef.current.lastTime < 700) {
+      logoClicksRef.current.count += 1;
+      if (logoClicksRef.current.count >= 3) {
+        setShowApiKeyModal(true);
+        logoClicksRef.current.count = 0;
+        return;
+      }
+    } else {
+      logoClicksRef.current.count = 1;
+    }
+    logoClicksRef.current.lastTime = now;
+    switchTab('home');
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        setShowApiKeyModal(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const greetingKey = useGreeting();
   const { location, loading: locationLoading, error: locationError, denied: locationDenied, refresh: refreshLocation, setManualLocation } = useLocation();
@@ -716,6 +792,65 @@ export function AppContent() {
           </h2>
           <p className="text-stone-500 text-sm mt-1">{t('advisor.soilAnalysisDesc')}</p>
         </div>
+
+        {/* Soil Card Image Dropzone */}
+        <div className="p-6 pb-0">
+          <div
+            onDragOver={(e) => { e.preventDefault(); setAdvisorDragging(true); }}
+            onDragLeave={() => setAdvisorDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setAdvisorDragging(false);
+              const file = e.dataTransfer.files?.[0];
+              if (file) handleAdvisorImageFile(file);
+            }}
+            onClick={() => advisorFileInputRef.current?.click()}
+            className={`border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center space-y-2 ${
+              advisorDragging 
+                ? 'border-emerald-500 bg-emerald-950/20' 
+                : 'border-stone-700/80 bg-stone-900/50 hover:border-emerald-500/50 hover:bg-stone-900'
+            }`}
+          >
+            <input 
+              type="file" 
+              ref={advisorFileInputRef} 
+              onChange={(e) => e.target.files?.[0] && handleAdvisorImageFile(e.target.files[0])} 
+              className="hidden" 
+              accept="image/*" 
+            />
+            {advisorOcrLoading ? (
+              <div className="flex items-center space-x-2 text-emerald-400 py-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span className="text-xs font-bold">Scanning soil report image with AI...</span>
+              </div>
+            ) : (
+              <>
+                <div className="w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-white block">Drop Soil Health Card / Lab Test Image</span>
+                  <span className="text-[10px] text-stone-400">Auto-fills N, P, K, pH, Temperature, Humidity & Rainfall parameters</span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <AnimatePresence>
+            {advisorOcrMsg && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-3 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/50 text-emerald-300 text-xs flex items-center space-x-2"
+              >
+                <Sparkles size={14} className="text-emerald-400 flex-shrink-0" />
+                <span className="flex-1">{advisorOcrMsg}</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
         <form
           onSubmit={handleCropRecommendation}
           noValidate
@@ -1552,7 +1687,6 @@ export function AppContent() {
     { id: 'fertilizer', icon: FlaskConical, label: t('common.fertilizer') },
     { id: 'disease', icon: Bug, label: t('common.disease') },
     { id: 'gis', icon: Map, label: 'Satellite Map' },
-    { id: 'marketplace', icon: Store, label: t('common.marketplace') },
     { id: 'weather', icon: CloudRain, label: t('common.weather') },
     { id: 'priceTrends', icon: TrendingUp, label: t('common.priceTrends') },
     { id: 'learn', icon: BookOpen, label: t('common.learn') },
@@ -1621,7 +1755,7 @@ export function AppContent() {
             <Menu size={20} />
           </button>
 
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => switchTab('home')}>
+          <div className="flex items-center space-x-3 cursor-pointer select-none" onClick={handleLogoSecretClick} title="AgroShield">
             <Logo size={36} />
             <div className="flex flex-col">
               <h1 className="font-bold text-lg md:text-xl tracking-tight leading-none text-white hover:text-brand-green transition-colors">
@@ -1766,14 +1900,23 @@ export function AppContent() {
               </div>
 
               {user && (
-                <div className="pt-6 border-t border-stone-800 flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-bold text-emerald-400">
-                    {user.name ? user.name.charAt(0) : <User size={18} />}
+                <div className="pt-6 border-t border-stone-800 flex items-center justify-between">
+                  <div className="flex items-center space-x-3 overflow-hidden">
+                    <div className="w-10 h-10 shrink-0 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center font-bold text-emerald-400">
+                      {user.name ? user.name.charAt(0) : <User size={18} />}
+                    </div>
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-sm font-bold text-white truncate">{user.name || 'User'}</span>
+                      <span className="text-xs text-stone-400 truncate">{user.identifier}</span>
+                    </div>
                   </div>
-                  <div className="flex flex-col overflow-hidden">
-                    <span className="text-sm font-bold text-white truncate">{user.name || 'User'}</span>
-                    <span className="text-xs text-stone-400 truncate">{user.identifier}</span>
-                  </div>
+                  <button
+                    onClick={() => setShowApiKeyModal(true)}
+                    title="Private Admin Vault"
+                    className="p-1.5 text-stone-600 hover:text-amber-400 opacity-20 hover:opacity-100 transition-opacity cursor-pointer rounded-lg hover:bg-stone-800/60"
+                  >
+                    <Lock size={12} />
+                  </button>
                 </div>
               )}
             </motion.div>
@@ -1809,18 +1952,13 @@ export function AppContent() {
           )}>
             <div className={cn(
               "mx-auto",
-              activeTab === 'marketplace' || activeTab === 'fertilizer' ? "max-w-7xl" : "max-w-4xl"
+              activeTab === 'fertilizer' ? "max-w-7xl" : "max-w-4xl"
             )}>
               <TabPanel active={activeTab === 'advisor'}>{renderAdvisor()}</TabPanel>
               <TabPanel active={activeTab === 'fertilizer'}>
                 <FertilizerRecommendation />
               </TabPanel>
               <TabPanel active={activeTab === 'disease'}>{renderDisease()}</TabPanel>
-              <TabPanel active={activeTab === 'marketplace'}>
-                <Marketplace
-                  initialLocation={location ? `${location.city}, ${location.state}` : user?.location}
-                />
-              </TabPanel>
               <TabPanel active={activeTab === 'weather'}>{renderWeather()}</TabPanel>
               <TabPanel active={activeTab === 'priceTrends'}>{renderPriceTrends()}</TabPanel>
               <TabPanel active={activeTab === 'learn'}>{renderLearn()}</TabPanel>
@@ -1831,6 +1969,7 @@ export function AppContent() {
       </main>
 
       <HistoryModal open={showHistory} onClose={() => setShowHistory(false)} />
+      <ApiKeyModal isOpen={showApiKeyModal} onClose={() => setShowApiKeyModal(false)} />
 
       {/* Profile dot tooltip — fixed below header, shown on dot hover */}
       <AnimatePresence>

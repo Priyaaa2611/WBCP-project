@@ -1072,7 +1072,7 @@ export async function createApp() {
   app.get('/api/market', async (req, res) => {
     try {
       console.log(`[API] Fetching market data: ${req.url}`);
-      const apiKey = process.env.MARKET_API_KEY || '579b464db66ec23bdd0000012ed5666eba6749fd7423718378c732ff';
+      const apiKey = process.env.MARKET_API_KEY || process.env.VITE_MARKET_API_KEY || '579b464db66ec23bdd0000012ed5666eba6749fd7423718378c732ff';
       const { state, district, commodity, limit = 100 } = req.query;
       const cacheKey = buildMarketCacheKey({
         state: state as string | undefined,
