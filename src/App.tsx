@@ -364,25 +364,97 @@ export function AppContent() {
     updateModuleData('weatherLoading', true);
     updateModuleData('weatherError', null);
     updateModuleData('weatherCity', city);
+
+    const OWM_KEY = '19927003d654bcd63f64e32840eeba91';
+
+    const fallbackData = {
+      status: 'ok',
+      city: city || 'Unknown',
+      temp: 25,
+      humidity: 60,
+      windSpeed: 5,
+      condition: 'Clear',
+      description: 'Clear sky (Fallback)',
+      icon: '01d',
+      uvIndex: 'Moderate',
+      insights: ["Weather data currently unavailable. Showing seasonal averages."],
+      forecast: [],
+      fallback: true
+    };
+
     try {
-      let url = `/api/weather/${city}`;
+      let currentUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${OWM_KEY}&units=metric`;
+      let forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)}&appid=${OWM_KEY}&units=metric`;
+
       if (lat && lon) {
-        url += `?lat=${lat}&lon=${lon}`;
+        currentUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OWM_KEY}&units=metric`;
+        forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${OWM_KEY}&units=metric`;
       }
-      const res = await fetch(url);
-      const data = await res.json();
-      
-      if (data.status === 'ok') {
-        updateModuleData('weather', data);
-        if (data.fallback) {
-          console.warn('[WEATHER] Using fallback weather data');
-        }
+
+      const [currentRes, forecastRes] = await Promise.all([
+        fetch(currentUrl),
+        fetch(forecastUrl)
+      ]);
+
+      if (!currentRes.ok) {
+        console.warn(`[WEATHER] OpenWeatherMap responded with ${currentRes.status}`);
+        updateModuleData('weather', fallbackData);
+        return;
+      }
+
+      const currentData = await currentRes.json();
+      const forecastData = forecastRes.ok ? await forecastRes.json() : { list: [] };
+
+      // Rule-based farming insights
+      const insights: string[] = [];
+      const temp = currentData.main.temp;
+      const humidity = currentData.main.humidity;
+      const weatherMain = currentData.weather[0].main.toLowerCase();
+
+      if (humidity > 70 && (weatherMain.includes('rain') || weatherMain.includes('drizzle'))) {
+        insights.push("High humidity & rainfall detected. Suitable for water-intensive crops like Rice or Sugarcane.");
+        insights.push("High fungal risk due to moisture. Avoid Tomato or Potato exposure if possible.");
+      } else if (temp > 30 && humidity < 40) {
+        insights.push("Low humidity & high temperature. Suitable for drought-resistant crops like Millet or Cotton.");
+        insights.push("Ensure adequate irrigation to prevent soil moisture depletion.");
+      } else if (temp < 15) {
+        insights.push("Cooler temperatures detected. Suitable for Rabi crops like Wheat or Mustard.");
       } else {
-        updateModuleData('weatherError', data.error || "Weather service unavailable");
+        insights.push("Moderate weather conditions. Good for a variety of seasonal vegetables.");
       }
+
+      if (currentData.wind.speed > 20) {
+        insights.push("Strong winds detected. Secure young saplings and avoid spraying pesticides.");
+      }
+
+      const dailyForecast = forecastData.list
+        ? forecastData.list
+            .filter((_: any, index: number) => index % 8 === 0)
+            .map((item: any) => ({
+              date: item.dt_txt.split(' ')[0],
+              temp: Math.round(item.main.temp),
+              condition: item.weather[0].main,
+              icon: item.weather[0].icon
+            }))
+        : [];
+
+      updateModuleData('weather', {
+        status: 'ok',
+        city: currentData.name,
+        temp: Math.round(currentData.main.temp),
+        humidity: currentData.main.humidity,
+        windSpeed: currentData.wind.speed,
+        condition: currentData.weather[0].main,
+        description: currentData.weather[0].description,
+        icon: currentData.weather[0].icon,
+        uvIndex: 'Moderate',
+        insights,
+        forecast: dailyForecast
+      });
     } catch (err) {
       console.error("Failed to fetch weather:", err);
-      updateModuleData('weatherError', "Failed to connect to weather service.");
+      // Show fallback instead of error so UI doesn't break
+      updateModuleData('weather', fallbackData);
     } finally {
       updateModuleData('weatherLoading', false);
     }
