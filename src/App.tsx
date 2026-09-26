@@ -281,7 +281,16 @@ export function AppContent() {
 
   useEffect(() => {
     if (location) {
-      // Only update weather based on location; keep market filters at "All States"
+      // Update market filters based on location
+      const newFilters = {
+        ...appData.marketFilters,
+        state: location.state || appData.marketFilters.state,
+        district: location.district || appData.marketFilters.district
+      };
+      updateModuleData('marketFilters', newFilters);
+      fetchMarketData(newFilters);
+      
+      // Update weather based on location
       fetchWeather(location.city || appData.weatherCity, location.lat, location.lon);
     }
   }, [location]);
@@ -324,7 +333,7 @@ export function AppContent() {
         updateModuleData('market', []);
         updateModuleData('selectedMarketCrop', null);
         updateModuleData('priceTrends', null);
-        // Don't set marketError — just show empty list in the UI
+        updateModuleData('marketError', 'No market data available');
         return;
       }
 
@@ -1265,7 +1274,7 @@ export function AppContent() {
               <Map className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" size={16} />
               <select 
                 value={appData.marketFilters.district}
-                onChange={(e) => handleMarketFilterChange({ district: e.target.value })}
+                onChange={(e) => handleMarketFilterChange({ district: e.target.value, state: appData.marketFilters.state })}
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm appearance-none"
               >
                 {districts.map(d => <option key={d} value={d}>{d}</option>)}
@@ -1701,7 +1710,7 @@ export function AppContent() {
               <div className="space-y-3">
                 <h4 className="text-sm font-bold text-stone-300">Recommendations:</h4>
                 <div className="grid grid-cols-1 gap-2">
-                  {result.recommendations.map((rec, i) => (
+                  {result.recommendations.map((rec: string, i: number) => (
                     <div key={i} className="bg-dark-bg/50 p-3 rounded-xl border border-dark-border text-stone-400 text-xs leading-relaxed">
                       {rec}
                     </div>
