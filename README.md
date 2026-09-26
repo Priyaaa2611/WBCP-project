@@ -1,12 +1,3 @@
-# AI Smart Agriculture System
-
-*Research-Based AI Platform for Precision Agriculture and Farmer Decision Support*
-
-[![Live Demo](https://img.shields.io/badge/Live-Demo-green)](https://ai-smart-agriculture-system.onrender.com)
-![Deployment](https://img.shields.io/badge/Deployment-Render-success)
-![React](https://img.shields.io/badge/React-TypeScript-61DAFB)
-![Node.js](https://img.shields.io/badge/Node.js-Express-339933)
-![Firebase](https://img.shields.io/badge/Firebase-Backend-FFCA28)
 ![Gemini API](https://img.shields.io/badge/Gemini-API-4285F4)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)

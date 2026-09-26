@@ -166,7 +166,7 @@ const createAppDataFromStorage = (): AppData => {
       marketplace: { ...defaultAppData.marketplace, ...(parsed.marketplace || {}) },
       learn: { ...defaultAppData.learn, ...(parsed.learn || {}) },
       weatherCity: parsed.weatherCity || defaultAppData.weatherCity,
-      marketFilters: { ...defaultAppData.marketFilters, ...(parsed.marketFilters || {}) }
+      marketFilters: defaultAppData.marketFilters // Always reset to 'All States' on load
     };
   } catch (e) {
     console.error('Failed to load app data from localStorage', e);

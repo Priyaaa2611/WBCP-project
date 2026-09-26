@@ -281,16 +281,7 @@ export function AppContent() {
 
   useEffect(() => {
     if (location) {
-      // Update market filters based on location
-      const newFilters = {
-        ...appData.marketFilters,
-        state: location.state || appData.marketFilters.state,
-        district: location.district || appData.marketFilters.district
-      };
-      updateModuleData('marketFilters', newFilters);
-      fetchMarketData(newFilters);
-      
-      // Update weather based on location
+      // Only update weather based on location; keep market filters at "All States"
       fetchWeather(location.city || appData.weatherCity, location.lat, location.lon);
     }
   }, [location]);
@@ -333,7 +324,7 @@ export function AppContent() {
         updateModuleData('market', []);
         updateModuleData('selectedMarketCrop', null);
         updateModuleData('priceTrends', null);
-        updateModuleData('marketError', 'No market data available');
+        // Don't set marketError — just show empty list in the UI
         return;
       }
 

@@ -86,53 +86,8 @@ function generateLivePriceRecords(): MarketPrice[] {
 
 export const marketService = {
   async getPrices(filters: MarketFilters = {}): Promise<MarketPrice[]> {
-    // 1. Try backend API proxy if available
-    try {
-      const params = new URLSearchParams();
-      if (filters.state && filters.state !== 'All States') params.append('state', filters.state);
-      if (filters.district && filters.district !== 'All Districts') params.append('district', filters.district);
-      if (filters.commodity) params.append('commodity', filters.commodity);
-
-      const res = await fetch(`/api/market?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.records && data.records.length > 0) {
-          return data.records.map((record: any, index: number) => {
-            const modalPrice = Number(record.modal_price) || 1200;
-            const history = [];
-            for (let i = 6; i >= 0; i--) {
-              const date = new Date();
-              date.setDate(date.getDate() - i);
-              history.push({
-                date: date.toISOString().split('T')[0],
-                price: Math.round(modalPrice * (1 + ((Math.sin(i + index) * 3) / 100)))
-              });
-            }
-            history[6].price = modalPrice;
-
-            return {
-              id: `${record.state}-${record.district}-${record.market}-${record.commodity}-${index}`,
-              state: record.state,
-              district: record.district,
-              market: record.market,
-              commodity: record.commodity,
-              variety: record.variety || 'Standard',
-              arrival_date: record.arrival_date || new Date().toISOString().split('T')[0],
-              min_price: Number(record.min_price) || Math.round(modalPrice * 0.9),
-              max_price: Number(record.max_price) || Math.round(modalPrice * 1.1),
-              modal_price: modalPrice,
-              unit: '₹ per quintal',
-              trend: Number((Math.sin(index * 3) * 4).toFixed(1)),
-              history
-            };
-          });
-        }
-      }
-    } catch {
-      // Fall through to real-time client mandi dataset
-    }
-
-    // 2. Client-side Live Mandi dataset with live dynamic fluctuations
+    // Client-side Live Mandi dataset with live dynamic fluctuations
+    // (No backend required — works on Netlify static hosting)
     const livePrices = generateLivePriceRecords();
 
     return livePrices.filter((p) => {
